@@ -431,84 +431,161 @@ with col_main:
                         st.rerun()
 
                     st.write("---")
-                    st.write("**Einheiten hinzufügen**")
                     
-                    # Neue Einheit hinzufügen
-                    with st.form(f"add_unit_{plan_name}", clear_on_submit=True):
+                    # Tabs für bessere Organisation
+                    tab1, tab2 = st.tabs(["📋 Einheiten", "➕ Neue Einheit"])
+                    
+                    with tab2:
+                        st.write("**Neue Trainingseinheit erstellen**")
+                        
+                        # Einheits-Grunddaten
                         col1, col2 = st.columns(2)
-                        new_datum = col1.text_input("Datum (TT.MM.JJJJ)", placeholder="01.02.2026")
-                        new_schwerpunkt = col2.text_input("Schwerpunkt", placeholder="z.B. Kraft")
-                        new_uebungen = st.text_input("Übungen (mit Komma trennen)", placeholder="Kniebeugen, Liegestütze, Planks")
+                        unit_datum = col1.text_input("Datum (TT.MM.JJJJ)", placeholder="01.02.2026", key=f"unit_datum_{plan_name}")
+                        unit_schwerpunkt = col2.text_input("Schwerpunkt", placeholder="z.B. Kraft", key=f"unit_schwerpunkt_{plan_name}")
                         
-                        if st.form_submit_button("Einheit hinzufügen"):
-                            if new_datum and new_schwerpunkt:
-                                try:
-                                    # Datum parsen
-                                    if "." in new_datum:
-                                        dt = datetime.strptime(new_datum.strip(), "%d.%m.%Y")
-                                    else:
-                                        dt = datetime.fromisoformat(new_datum.strip())
-                                    
-                                    # Übungen in Liste umwandeln
-                                    uebungen_liste = [u.strip() for u in new_uebungen.split(",")] if new_uebungen else []
-                                    
-                                    # Neue Einheit
-                                    new_unit = {
-                                        "datum": dt.date().isoformat(),
-                                        "schwerpunkt": new_schwerpunkt,
-                                        "uebungen": uebungen_liste
-                                    }
-                                    
-                                    st.session_state.training_plans[plan_name].append(new_unit)
-                                    save_data()
-                                    st.success("Einheit hinzugefügt!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Fehler beim Datum-Format. Bitte TT.MM.JJJJ verwenden (z.B. 01.02.2026)")
-                            else:
-                                st.error("Bitte mindestens Datum und Schwerpunkt eingeben.")
-
-                    # Bestehende Einheiten anzeigen und löschen
-                    if units:
                         st.write("---")
-                        st.write("**Vorhandene Einheiten**")
+                        st.write("**Übungen hinzufügen**")
                         
-                        for idx, u in enumerate(units):
-                            if isinstance(u, dict):
-                                col1, col2 = st.columns([0.85, 0.15])
-                                
-                                with col1:
+                        # Session State für temporäre Übungen
+                        if f"temp_exercises_{plan_name}" not in st.session_state:
+                            st.session_state[f"temp_exercises_{plan_name}"] = []
+                        
+                        # Übungsformular
+                        with st.form(f"exercise_form_{plan_name}", clear_on_submit=True):
+                            st.write("**Neue Übung**")
+                            exc1, exc2 = st.columns(2)
+                            ex_name = exc1.text_input("Übungsname", placeholder="z.B. Kniebeugen")
+                            ex_saetze = exc2.number_input("Sätze", min_value=1, max_value=20, value=3)
+                            
+                            exc3, exc4 = st.columns(2)
+                            ex_wdh = exc3.text_input("Wiederholungen", placeholder="z.B. 10 oder 8-12")
+                            ex_intensitaet = exc4.text_input("Intensität/Gewicht", placeholder="z.B. 80% oder 60kg")
+                            
+                            if st.form_submit_button("Übung hinzufügen ➕"):
+                                if ex_name:
+                                    new_exercise = {
+                                        "name": ex_name,
+                                        "saetze": ex_saetze,
+                                        "wiederholungen": ex_wdh,
+                                        "intensitaet": ex_intensitaet
+                                    }
+                                    st.session_state[f"temp_exercises_{plan_name}"].append(new_exercise)
+                                    st.rerun()
+                                else:
+                                    st.error("Bitte Übungsname eingeben!")
+                        
+                        # Zeige hinzugefügte Übungen
+                        if st.session_state[f"temp_exercises_{plan_name}"]:
+                            st.write("---")
+                            st.write("**Übungen in dieser Einheit:**")
+                            
+                            for idx, ex in enumerate(st.session_state[f"temp_exercises_{plan_name}"]):
+                                col_ex1, col_ex2 = st.columns([0.85, 0.15])
+                                with col_ex1:
+                                    st.markdown(f"**{idx+1}. {ex['name']}**")
+                                    st.caption(f"Sätze: {ex['saetze']} | Wiederholungen: {ex['wiederholungen']} | Intensität: {ex['intensitaet']}")
+                                with col_ex2:
+                                    if st.button("🗑️", key=f"delete_temp_ex_{plan_name}_{idx}"):
+                                        st.session_state[f"temp_exercises_{plan_name}"].pop(idx)
+                                        st.rerun()
+                        
+                        st.write("---")
+                        
+                        # Einheit speichern
+                        col_save1, col_save2 = st.columns([0.7, 0.3])
+                        with col_save1:
+                            if st.button("💾 Einheit speichern", type="primary", key=f"save_unit_{plan_name}"):
+                                if not unit_datum or not unit_schwerpunkt:
+                                    st.error("Bitte Datum und Schwerpunkt eingeben!")
+                                elif not st.session_state[f"temp_exercises_{plan_name}"]:
+                                    st.error("Bitte mindestens eine Übung hinzufügen!")
+                                else:
+                                    try:
+                                        # Datum parsen
+                                        if "." in unit_datum:
+                                            dt = datetime.strptime(unit_datum.strip(), "%d.%m.%Y")
+                                        else:
+                                            dt = datetime.fromisoformat(unit_datum.strip())
+                                        
+                                        # Neue Einheit erstellen
+                                        new_unit = {
+                                            "datum": dt.date().isoformat(),
+                                            "schwerpunkt": unit_schwerpunkt,
+                                            "uebungen": st.session_state[f"temp_exercises_{plan_name}"].copy()
+                                        }
+                                        
+                                        st.session_state.training_plans[plan_name].append(new_unit)
+                                        st.session_state[f"temp_exercises_{plan_name}"] = []  # Reset
+                                        save_data()
+                                        st.success("✅ Einheit gespeichert!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Fehler beim Datum-Format. Bitte TT.MM.JJJJ verwenden (z.B. 01.02.2026)")
+                        
+                        with col_save2:
+                            if st.button("🗑️ Alle löschen", key=f"clear_temp_{plan_name}"):
+                                st.session_state[f"temp_exercises_{plan_name}"] = []
+                                st.rerun()
+                    
+                    with tab1:
+                        # Bestehende Einheiten anzeigen
+                        if not units:
+                            st.info("Noch keine Einheiten vorhanden. Wechsle zum Tab '➕ Neue Einheit'.")
+                        else:
+                            # Sortiere nach Datum
+                            sorted_units = sorted(enumerate(units), 
+                                                key=lambda x: x[1].get("datum", ""), 
+                                                reverse=True)
+                            
+                            for original_idx, u in sorted_units:
+                                if isinstance(u, dict):
                                     st.markdown('<div class="ap-card-marker"></div>', unsafe_allow_html=True)
                                     with st.container(border=True):
-                                        dt_val = pd.to_datetime(u.get("datum", ""), errors="coerce")
-                                        display_date = dt_val.strftime("%d.%m.%Y") if not pd.isna(dt_val) else "?"
-                                        st.markdown(f"**📅 {display_date}**")
-                                        st.markdown(f"**🎯 {u.get('schwerpunkt','Kein Schwerpunkt')}**")
+                                        col_header1, col_header2 = st.columns([0.85, 0.15])
+                                        
+                                        with col_header1:
+                                            dt_val = pd.to_datetime(u.get("datum", ""), errors="coerce")
+                                            display_date = dt_val.strftime("%d.%m.%Y") if not pd.isna(dt_val) else "?"
+                                            st.markdown(f"### 📅 {display_date}")
+                                            st.markdown(f"**🎯 {u.get('schwerpunkt','Kein Schwerpunkt')}**")
+                                        
+                                        with col_header2:
+                                            if st.button("🗑️", key=f"delete_unit_{plan_name}_{original_idx}"):
+                                                st.session_state.training_plans[plan_name].pop(original_idx)
+                                                save_data()
+                                                st.rerun()
+                                        
+                                        st.write("---")
                                         
                                         # Übungen anzeigen
                                         uebungen = u.get("uebungen", [])
-                                        if not uebungen:
-                                            uebungen = u.get("übungen", [])  # Fallback für altes Format
                                         
                                         if uebungen:
-                                            st.markdown("*Übungen:*")
-                                            for ex in uebungen:
-                                                if isinstance(ex, str):
-                                                    st.markdown(f"- {ex}")
-                                                elif isinstance(ex, dict):
-                                                    # Altes Format mit Objekten
-                                                    ueb_name = ex.get("übung", ex.get("uebung", "?"))
-                                                    wdh = ex.get("wiederholungen", "")
-                                                    int_val = ex.get("intensität", ex.get("intensitaet", ""))
-                                                    st.markdown(f"- {ueb_name} ({wdh}x {int_val})")
+                                            for idx, ex in enumerate(uebungen):
+                                                if isinstance(ex, dict):
+                                                    # Neue strukturierte Übungen
+                                                    st.markdown(f"**{idx+1}. {ex.get('name', 'Übung')}**")
+                                                    
+                                                    col_detail1, col_detail2, col_detail3 = st.columns(3)
+                                                    with col_detail1:
+                                                        st.caption(f"🔢 Sätze: {ex.get('saetze', '-')}")
+                                                    with col_detail2:
+                                                        st.caption(f"🔁 Wdh: {ex.get('wiederholungen', '-')}")
+                                                    with col_detail3:
+                                                        st.caption(f"💪 Intensität: {ex.get('intensitaet', '-')}")
+                                                    
+                                                    if idx < len(uebungen) - 1:
+                                                        st.write("")
+                                                
+                                                elif isinstance(ex, str):
+                                                    # Alte einfache Übungen (Rückwärtskompatibilität)
+                                                    st.markdown(f"**{idx+1}.** {ex}")
+                                                    if idx < len(uebungen) - 1:
+                                                        st.write("")
                                         else:
                                             st.caption("Keine Übungen eingetragen.")
-                                
-                                with col2:
-                                    if st.button("🗑️", key=f"delete_{plan_name}_{idx}"):
-                                        st.session_state.training_plans[plan_name].pop(idx)
-                                        save_data()
-                                        st.rerun()
+                                    
+                                    st.write("")  # Abstand zwischen Karten
 
     # -------- ENTWICKLUNG --------
     elif st.session_state.page == "Entwicklung":
